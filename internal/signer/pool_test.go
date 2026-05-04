@@ -191,6 +191,34 @@ func TestNonceMonotonic(t *testing.T) {
 	}
 }
 
+func TestRewindNonce(t *testing.T) {
+	pool, _ := newPool(t, 1, 50)
+	s, err := pool.Checkout(context.Background(), "app-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Release(s)
+
+	if got := s.UseNonce(); got != 50 {
+		t.Fatalf("first UseNonce = %d, want 50", got)
+	}
+	s.RewindNonce()
+	if got := s.Nonce(); got != 50 {
+		t.Fatalf("after rewind, Nonce() = %d, want 50", got)
+	}
+	if got := s.UseNonce(); got != 50 {
+		t.Fatalf("second UseNonce = %d, want 50 (rewound)", got)
+	}
+
+	// Use, use, rewind once → next is the second one.
+	_ = s.UseNonce() // 51
+	_ = s.UseNonce() // 52
+	s.RewindNonce()
+	if got := s.UseNonce(); got != 52 {
+		t.Fatalf("after rewind from 53, UseNonce = %d, want 52", got)
+	}
+}
+
 func TestPoolSizeHonoredUnderContention(t *testing.T) {
 	const poolSize = 4
 	const workers = 32
