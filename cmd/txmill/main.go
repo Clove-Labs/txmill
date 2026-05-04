@@ -18,6 +18,7 @@ import (
 	"github.com/clove-labs/txmill/internal/relay"
 	"github.com/clove-labs/txmill/internal/signer"
 	"github.com/clove-labs/txmill/internal/store"
+	"github.com/clove-labs/txmill/internal/webhook"
 )
 
 func main() {
@@ -58,6 +59,9 @@ func main() {
 	signerPool := signer.NewPool(ks, chainClient, appSvc)
 	relaySvc := relay.NewService(pool, chainClient, signerPool)
 
+	webhookSvc := webhook.NewService(pool, relaySvc, logger)
+	relaySvc.SetWebhooks(webhookSvc)
+
 	watcher := relay.NewWatcher(
 		pool,
 		chainClient,
@@ -65,9 +69,17 @@ func main() {
 		int(cfg.WatcherBatchSize),
 		logger,
 	)
-	watcherCtx, cancelWatcher := context.WithCancel(context.Background())
-	defer cancelWatcher()
-	go watcher.Run(watcherCtx)
+	watcher.SetWebhooks(webhookSvc)
+	webhookWorker := webhook.NewWorker(
+		pool,
+		time.Duration(cfg.WatcherIntervalMs)*time.Millisecond,
+		int(cfg.WatcherBatchSize),
+		logger,
+	)
+	bgCtx, cancelBg := context.WithCancel(context.Background())
+	defer cancelBg()
+	go watcher.Run(bgCtx)
+	go webhookWorker.Run(bgCtx)
 
 	handlers := &api.Handlers{
 		Apps:  appSvc,
@@ -88,7 +100,7 @@ func main() {
 	<-stop
 
 	logger.Info("shutting down")
-	cancelWatcher()
+	cancelBg()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = e.Shutdown(shutdownCtx)

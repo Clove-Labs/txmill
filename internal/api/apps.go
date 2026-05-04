@@ -16,10 +16,11 @@ type createAppRequest struct {
 }
 
 type createAppResponse struct {
-	AppID           string   `json:"app_id"`
-	BearerToken     string   `json:"bearer_token"`
-	TreasuryAddress string   `json:"treasury_address"`
-	SignerAddresses []string `json:"signer_addresses"`
+	AppID                 string   `json:"app_id"`
+	BearerToken           string   `json:"bearer_token"`
+	DefaultCallbackSecret string   `json:"default_callback_secret,omitempty"`
+	TreasuryAddress       string   `json:"treasury_address"`
+	SignerAddresses       []string `json:"signer_addresses"`
 }
 
 func (h *Handlers) createApp(c echo.Context) error {
@@ -41,9 +42,10 @@ func (h *Handlers) createApp(c echo.Context) error {
 		signers[i] = a.Hex()
 	}
 	return c.JSON(http.StatusCreated, createAppResponse{
-		AppID:           res.AppID,
-		BearerToken:     res.BearerToken,
-		TreasuryAddress: res.TreasuryAddress.Hex(),
-		SignerAddresses: signers,
+		AppID:                 res.AppID,
+		BearerToken:           res.BearerToken,
+		DefaultCallbackSecret: res.DefaultCallbackSecret,
+		TreasuryAddress:       res.TreasuryAddress.Hex(),
+		SignerAddresses:       signers,
 	})
 }
