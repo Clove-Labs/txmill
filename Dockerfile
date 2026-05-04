@@ -9,5 +9,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/txmill 
 FROM gcr.io/distroless/static-debian12
 COPY --from=builder /out/txmill  /usr/local/bin/txmill
 COPY --from=builder /out/migrate /usr/local/bin/migrate
+USER 0:0
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/txmill"]
