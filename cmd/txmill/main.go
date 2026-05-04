@@ -55,6 +55,23 @@ func main() {
 	}
 	defer chainClient.Close()
 
+	if report, err := relay.Recover(ctx, pool); err != nil {
+		logger.Error("startup recovery scan failed", "err", err)
+	} else {
+		logger.Info("startup recovery",
+			"inflight_attempts", report.InflightAttempts,
+			"pending_webhook_deliveries", report.PendingWebhookDeliveries,
+			"stuck_requests", len(report.StuckRequests),
+		)
+		for _, s := range report.StuckRequests {
+			logger.Warn("stuck pending request (no tx_attempt — likely crashed before submit)",
+				"request_id", s.RequestID,
+				"app_id", s.AppID,
+				"created_at", s.CreatedAt,
+			)
+		}
+	}
+
 	appSvc := app.NewService(pool, ks)
 	signerPool := signer.NewPool(ks, chainClient, appSvc)
 	relaySvc := relay.NewService(pool, chainClient, signerPool)
