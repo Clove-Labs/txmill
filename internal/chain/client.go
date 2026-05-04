@@ -64,3 +64,7 @@ func (c *Client) SendTransaction(ctx context.Context, tx *types.Transaction) err
 func (c *Client) TransactionReceipt(ctx context.Context, hash common.Hash) (*types.Receipt, error) {
 	return c.rpc.TransactionReceipt(ctx, hash)
 }
+
+func (c *Client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	return c.rpc.CallContract(ctx, msg, blockNumber)
+}
