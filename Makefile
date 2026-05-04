@@ -5,7 +5,7 @@ GOLANGCI_LINT ?= golangci-lint
 BIN_DIR := bin
 BINARY := $(BIN_DIR)/txmill
 
-.PHONY: help build test lint tidy run ci tools clean migrate-up migrate-down migrate-status
+.PHONY: help build test lint tidy run ci tools clean migrate-up migrate-down migrate-status dev-up dev-down dev-logs
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -43,3 +43,12 @@ migrate-down: ## Roll back the most recent migration
 
 migrate-status: ## Show migration status
 	$(GO) run ./cmd/migrate status
+
+dev-up: ## Start local dev dependencies (Postgres) via docker compose
+	docker compose up -d --wait
+
+dev-down: ## Stop local dev dependencies (preserves data volume)
+	docker compose down
+
+dev-logs: ## Tail local dev dependency logs
+	docker compose logs -f
