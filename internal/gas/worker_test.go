@@ -98,7 +98,7 @@ func TestTick_NoOptedInApps(t *testing.T) {
 	pool := dbtest.New(t)
 
 	chain := &stubChain{chainID: big.NewInt(146), gasPrice: big.NewInt(1e9)}
-	w := gas.NewWorker(pool, chain, &stubKeystore{}, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	w := gas.NewWorker(pool, chain, &stubKeystore{}, nil, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err := w.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestTick_RefillsBelowThresholdSigner(t *testing.T) {
 			signerHigh:   big.NewInt(500), // above threshold
 		},
 	}
-	w := gas.NewWorker(pool, chain, &stubKeystore{key: treasuryKey}, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	w := gas.NewWorker(pool, chain, &stubKeystore{key: treasuryKey}, nil, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err := w.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestTick_SuppressesRecentDuplicate(t *testing.T) {
 			signer:       big.NewInt(50),
 		},
 	}
-	w := gas.NewWorker(pool, chain, &stubKeystore{key: treasuryKey}, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	w := gas.NewWorker(pool, chain, &stubKeystore{key: treasuryKey}, nil, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err := w.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestTick_TreasuryLowAlertsButStillRefills(t *testing.T) {
 			signer:       big.NewInt(50),   // below signer_min_balance (100) — refill anyway
 		},
 	}
-	w := gas.NewWorker(pool, chain, &stubKeystore{key: treasuryKey}, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	w := gas.NewWorker(pool, chain, &stubKeystore{key: treasuryKey}, nil, time.Second, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err := w.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}

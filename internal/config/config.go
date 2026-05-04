@@ -15,6 +15,11 @@ type Config struct {
 	WatcherIntervalMs uint64
 	WatcherBatchSize  uint64
 	GasIntervalMs     uint64
+
+	AlertWebhookURL  string
+	TelegramBotToken string
+	TelegramChatID   string
+	AlertThrottleMs  uint64
 }
 
 func Load() *Config {
@@ -28,6 +33,11 @@ func Load() *Config {
 		WatcherIntervalMs: getenvUint64("TXMILL_WATCHER_INTERVAL_MS", 1000),
 		WatcherBatchSize:  getenvUint64("TXMILL_WATCHER_BATCH_SIZE", 50),
 		GasIntervalMs:     getenvUint64("TXMILL_GAS_INTERVAL_MS", 30_000),
+
+		AlertWebhookURL:  os.Getenv("TXMILL_ALERT_WEBHOOK_URL"),
+		TelegramBotToken: os.Getenv("TXMILL_TELEGRAM_BOT_TOKEN"),
+		TelegramChatID:   os.Getenv("TXMILL_TELEGRAM_CHAT_ID"),
+		AlertThrottleMs:  getenvUint64("TXMILL_ALERT_THROTTLE_MS", 30*60*1000),
 	}
 }
 
