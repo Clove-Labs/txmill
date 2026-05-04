@@ -130,6 +130,7 @@ func main() {
 	handlers := &api.Handlers{
 		Apps:  appSvc,
 		Relay: relaySvc,
+		Chain: chainClient,
 	}
 	e := api.NewRouter(logger, handlers)
 
