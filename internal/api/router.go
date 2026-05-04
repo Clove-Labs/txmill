@@ -8,7 +8,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-func NewRouter(logger *slog.Logger) *echo.Echo {
+func NewRouter(logger *slog.Logger, h *Handlers) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
@@ -31,6 +31,11 @@ func NewRouter(logger *slog.Logger) *echo.Echo {
 	}))
 
 	e.GET("/health", health)
+
+	v1 := e.Group("/v1")
+	if h != nil && h.Apps != nil {
+		v1.POST("/apps", h.createApp)
+	}
 
 	return e
 }
