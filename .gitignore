@@ -1,0 +1,12 @@
+/bin/
+/txmill
+*.exe
+
+.env
+.env.local
+.env.*.local
+
+/data/
+/keys/
+*.key
+*.enc
