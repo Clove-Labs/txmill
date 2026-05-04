@@ -1,0 +1,22 @@
+.git
+.gitignore
+.github
+
+# Local-only files
+.env
+.env.local
+.env.*.local
+data/
+keys/
+bin/
+*.key
+*.enc
+
+# Dev-only
+compose.yaml
+scripts/live/
+
+# Test artifacts
+*.test
+*.out
+coverage*
