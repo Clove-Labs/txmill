@@ -1,12 +1,17 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strconv"
+)
 
 type Config struct {
 	APIListen        string
 	DBURL            string
 	KeystoreDir      string
 	KeystorePassword string
+	RPCURL           string
+	ChainID          uint64
 }
 
 func Load() *Config {
@@ -15,6 +20,8 @@ func Load() *Config {
 		DBURL:            os.Getenv("TXMILL_DB_URL"),
 		KeystoreDir:      getenv("TXMILL_KEYSTORE_DIR", "./data/keys"),
 		KeystorePassword: os.Getenv("TXMILL_KEYSTORE_PASSWORD"),
+		RPCURL:           os.Getenv("TXMILL_RPC_URL"),
+		ChainID:          getenvUint64("TXMILL_CHAIN_ID", 146),
 	}
 }
 
@@ -23,4 +30,16 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func getenvUint64(key string, def uint64) uint64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return def
+	}
+	return n
 }
