@@ -8,4 +8,5 @@ import (
 type Handlers struct {
 	Apps  *app.Service
 	Relay *relay.Service
+	Chain ChainBalances
 }
