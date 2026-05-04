@@ -14,6 +14,7 @@ import (
 	"github.com/clove-labs/txmill/internal/app"
 	"github.com/clove-labs/txmill/internal/chain"
 	"github.com/clove-labs/txmill/internal/config"
+	"github.com/clove-labs/txmill/internal/gas"
 	"github.com/clove-labs/txmill/internal/keystore"
 	"github.com/clove-labs/txmill/internal/relay"
 	"github.com/clove-labs/txmill/internal/signer"
@@ -95,8 +96,16 @@ func main() {
 	)
 	bgCtx, cancelBg := context.WithCancel(context.Background())
 	defer cancelBg()
+	gasWorker := gas.NewWorker(
+		pool,
+		chainClient,
+		ks,
+		time.Duration(cfg.GasIntervalMs)*time.Millisecond,
+		logger,
+	)
 	go watcher.Run(bgCtx)
 	go webhookWorker.Run(bgCtx)
+	go gasWorker.Run(bgCtx)
 
 	handlers := &api.Handlers{
 		Apps:  appSvc,

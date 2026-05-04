@@ -14,6 +14,7 @@ type Config struct {
 	ChainID           uint64
 	WatcherIntervalMs uint64
 	WatcherBatchSize  uint64
+	GasIntervalMs     uint64
 }
 
 func Load() *Config {
@@ -26,6 +27,7 @@ func Load() *Config {
 		ChainID:           getenvUint64("TXMILL_CHAIN_ID", 146),
 		WatcherIntervalMs: getenvUint64("TXMILL_WATCHER_INTERVAL_MS", 1000),
 		WatcherBatchSize:  getenvUint64("TXMILL_WATCHER_BATCH_SIZE", 50),
+		GasIntervalMs:     getenvUint64("TXMILL_GAS_INTERVAL_MS", 30_000),
 	}
 }
 

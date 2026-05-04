@@ -38,6 +38,10 @@ type CreateInput struct {
 	Name               string
 	PoolSize           int
 	DefaultCallbackURL string
+	// Gas top-up policy. All three must be set together (or all zero = disabled).
+	SignerMinBalance   string // uint256 decimal
+	SignerRefillAmount string // uint256 decimal
+	TreasuryMinBalance string // uint256 decimal
 }
 
 type CreateResult struct {
@@ -83,7 +87,12 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, er
 		}
 	}
 
-	appID, err := s.insert(ctx, name, in.PoolSize, in.DefaultCallbackURL, callbackSecret, treasury, signers, hash)
+	appID, err := s.insert(ctx, name, in.PoolSize, in.DefaultCallbackURL, callbackSecret,
+		treasury, signers, hash,
+		nonEmptyOrZero(in.SignerMinBalance),
+		nonEmptyOrZero(in.SignerRefillAmount),
+		nonEmptyOrZero(in.TreasuryMinBalance),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("insert: %w", err)
 	}
@@ -106,6 +115,7 @@ func (s *Service) insert(
 	treasury common.Address,
 	signers []common.Address,
 	tokenHash []byte,
+	signerMinBalance, signerRefillAmount, treasuryMinBalance string,
 ) (string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -116,10 +126,14 @@ func (s *Service) insert(
 	var appID string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO apps (name, treasury_address, bearer_token_hash, pool_size,
-		                  default_callback_url, default_callback_secret)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''))
+		                  default_callback_url, default_callback_secret,
+		                  signer_min_balance, signer_refill_amount, treasury_min_balance)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, $8, $9)
 		RETURNING id::text
-	`, name, lowerHex(treasury), tokenHash, poolSize, callbackURL, callbackSecret).Scan(&appID)
+	`, name, lowerHex(treasury), tokenHash, poolSize,
+		callbackURL, callbackSecret,
+		signerMinBalance, signerRefillAmount, treasuryMinBalance,
+	).Scan(&appID)
 	if err != nil {
 		return "", err
 	}
@@ -150,6 +164,13 @@ func newBearerToken() (token string, hash []byte, err error) {
 	token = bearerTokenTag + base64.RawURLEncoding.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(token))
 	return token, sum[:], nil
+}
+
+func nonEmptyOrZero(s string) string {
+	if s == "" {
+		return "0"
+	}
+	return s
 }
 
 func newCallbackSecret() (string, error) {
