@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -59,6 +60,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, er
 	}
 	if in.PoolSize < minPoolSize || in.PoolSize > maxPoolSize {
 		return nil, fmt.Errorf("pool_size must be between %d and %d", minPoolSize, maxPoolSize)
+	}
+	if err := validateGasPolicy(in.SignerMinBalance, in.SignerRefillAmount); err != nil {
+		return nil, err
 	}
 
 	treasury, err := s.ks.Generate()
@@ -171,6 +175,39 @@ func nonEmptyOrZero(s string) string {
 		return "0"
 	}
 	return s
+}
+
+// validateGasPolicy enforces:
+//   - both fields zero → gas worker skips this app (OK).
+//   - both fields non-zero → signer_refill_amount must exceed signer_min_balance,
+//     otherwise the worker would refill on every dedupe-window tick forever
+//     (refill leaves the signer still below threshold).
+//   - one field zero, other non-zero → invalid (forgot to set both).
+func validateGasPolicy(signerMin, signerRefill string) error {
+	min := parseUintOrZero(signerMin)
+	refill := parseUintOrZero(signerRefill)
+
+	if min.Sign() == 0 && refill.Sign() == 0 {
+		return nil
+	}
+	if min.Sign() == 0 || refill.Sign() == 0 {
+		return errors.New("signer_min_balance and signer_refill_amount must be set together (or both zero)")
+	}
+	if refill.Cmp(min) <= 0 {
+		return errors.New("signer_refill_amount must be greater than signer_min_balance")
+	}
+	return nil
+}
+
+func parseUintOrZero(s string) *big.Int {
+	if s == "" {
+		return new(big.Int)
+	}
+	v, ok := new(big.Int).SetString(s, 10)
+	if !ok || v.Sign() < 0 {
+		return new(big.Int)
+	}
+	return v
 }
 
 func newCallbackSecret() (string, error) {
