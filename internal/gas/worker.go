@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/clove-labs/txmill/internal/alert"
 )
 
 // recentTopupWindow defines how long a previous top-up suppresses another
@@ -36,16 +38,21 @@ type Worker struct {
 	pool     *pgxpool.Pool
 	chain    Chain
 	keystore Keystore
+	notifier alert.Notifier
 	interval time.Duration
 	logger   *slog.Logger
 	signer   types.Signer
 }
 
-func NewWorker(pool *pgxpool.Pool, chain Chain, keystore Keystore, interval time.Duration, logger *slog.Logger) *Worker {
+func NewWorker(pool *pgxpool.Pool, chain Chain, keystore Keystore, notifier alert.Notifier, interval time.Duration, logger *slog.Logger) *Worker {
+	if notifier == nil {
+		notifier = alert.Discard{}
+	}
 	return &Worker{
 		pool:     pool,
 		chain:    chain,
 		keystore: keystore,
+		notifier: notifier,
 		interval: interval,
 		logger:   logger,
 		signer:   types.NewEIP155Signer(chain.ChainID()),
@@ -130,6 +137,18 @@ func (w *Worker) processApp(ctx context.Context, p appPolicy) error {
 			"balance", tBal.String(),
 			"min", p.treasuryMinBalance.String(),
 		)
+		if err := w.notifier.Notify(ctx, alert.Alert{
+			Key:     "treasury_low:" + p.id,
+			Level:   alert.LevelWarn,
+			Title:   "Treasury balance low",
+			Message: fmt.Sprintf("balance %s wei (min %s wei)", tBal.String(), p.treasuryMinBalance.String()),
+			Tags: map[string]string{
+				"app_id":   p.id,
+				"treasury": p.treasuryAddress.Hex(),
+			},
+		}); err != nil {
+			w.logger.Error("alert dispatch", "key", "treasury_low", "err", err)
+		}
 	}
 
 	signers, err := w.listSigners(ctx, p.id)

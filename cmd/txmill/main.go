@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/clove-labs/txmill/internal/alert"
 	"github.com/clove-labs/txmill/internal/api"
 	"github.com/clove-labs/txmill/internal/app"
 	"github.com/clove-labs/txmill/internal/chain"
@@ -21,6 +22,23 @@ import (
 	"github.com/clove-labs/txmill/internal/store"
 	"github.com/clove-labs/txmill/internal/webhook"
 )
+
+func buildNotifier(cfg *config.Config, logger *slog.Logger) alert.Notifier {
+	transports := alert.Multi{}
+	if cfg.AlertWebhookURL != "" {
+		transports = append(transports, alert.NewWebhook(cfg.AlertWebhookURL))
+	}
+	if cfg.TelegramBotToken != "" && cfg.TelegramChatID != "" {
+		transports = append(transports, alert.NewTelegram(cfg.TelegramBotToken, cfg.TelegramChatID))
+	}
+	if len(transports) == 0 {
+		logger.Info("no alert transports configured; alerts will be discarded")
+		return alert.Discard{}
+	}
+	logger.Info("alert transports configured", "count", len(transports),
+		"throttle", time.Duration(cfg.AlertThrottleMs)*time.Millisecond)
+	return alert.NewThrottled(transports, time.Duration(cfg.AlertThrottleMs)*time.Millisecond)
+}
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -96,10 +114,12 @@ func main() {
 	)
 	bgCtx, cancelBg := context.WithCancel(context.Background())
 	defer cancelBg()
+	notifier := buildNotifier(cfg, logger)
 	gasWorker := gas.NewWorker(
 		pool,
 		chainClient,
 		ks,
+		notifier,
 		time.Duration(cfg.GasIntervalMs)*time.Millisecond,
 		logger,
 	)
