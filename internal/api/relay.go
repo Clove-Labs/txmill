@@ -32,6 +32,18 @@ type relayResponse struct {
 	Signer    string `json:"signer"`
 }
 
+func (h *Handlers) getRelay(c echo.Context) error {
+	requestID := c.Param("request_id")
+	status, err := h.Relay.Get(c.Request().Context(), requestID, AppID(c))
+	if err != nil {
+		if errors.Is(err, relay.ErrNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "not found")
+		}
+		return err
+	}
+	return c.JSON(http.StatusOK, status)
+}
+
 func (h *Handlers) postRelay(c echo.Context) error {
 	var req relayRequest
 	if err := c.Bind(&req); err != nil {
