@@ -1,3 +1,3 @@
-module github.com/clove-tech/txmill
+module github.com/clove-labs/txmill
 
 go 1.26.2
