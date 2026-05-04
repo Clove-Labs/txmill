@@ -58,6 +58,17 @@ func main() {
 	signerPool := signer.NewPool(ks, chainClient, appSvc)
 	relaySvc := relay.NewService(pool, chainClient, signerPool)
 
+	watcher := relay.NewWatcher(
+		pool,
+		chainClient,
+		time.Duration(cfg.WatcherIntervalMs)*time.Millisecond,
+		int(cfg.WatcherBatchSize),
+		logger,
+	)
+	watcherCtx, cancelWatcher := context.WithCancel(context.Background())
+	defer cancelWatcher()
+	go watcher.Run(watcherCtx)
+
 	handlers := &api.Handlers{
 		Apps:  appSvc,
 		Relay: relaySvc,
@@ -77,6 +88,7 @@ func main() {
 	<-stop
 
 	logger.Info("shutting down")
+	cancelWatcher()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = e.Shutdown(shutdownCtx)

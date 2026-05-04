@@ -6,22 +6,26 @@ import (
 )
 
 type Config struct {
-	APIListen        string
-	DBURL            string
-	KeystoreDir      string
-	KeystorePassword string
-	RPCURL           string
-	ChainID          uint64
+	APIListen         string
+	DBURL             string
+	KeystoreDir       string
+	KeystorePassword  string
+	RPCURL            string
+	ChainID           uint64
+	WatcherIntervalMs uint64
+	WatcherBatchSize  uint64
 }
 
 func Load() *Config {
 	return &Config{
-		APIListen:        getenv("TXMILL_API_LISTEN", ":8080"),
-		DBURL:            os.Getenv("TXMILL_DB_URL"),
-		KeystoreDir:      getenv("TXMILL_KEYSTORE_DIR", "./data/keys"),
-		KeystorePassword: os.Getenv("TXMILL_KEYSTORE_PASSWORD"),
-		RPCURL:           os.Getenv("TXMILL_RPC_URL"),
-		ChainID:          getenvUint64("TXMILL_CHAIN_ID", 146),
+		APIListen:         getenv("TXMILL_API_LISTEN", ":8080"),
+		DBURL:             os.Getenv("TXMILL_DB_URL"),
+		KeystoreDir:       getenv("TXMILL_KEYSTORE_DIR", "./data/keys"),
+		KeystorePassword:  os.Getenv("TXMILL_KEYSTORE_PASSWORD"),
+		RPCURL:            os.Getenv("TXMILL_RPC_URL"),
+		ChainID:           getenvUint64("TXMILL_CHAIN_ID", 146),
+		WatcherIntervalMs: getenvUint64("TXMILL_WATCHER_INTERVAL_MS", 1000),
+		WatcherBatchSize:  getenvUint64("TXMILL_WATCHER_BATCH_SIZE", 50),
 	}
 }
 

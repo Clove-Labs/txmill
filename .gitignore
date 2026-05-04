@@ -10,3 +10,6 @@
 /keys/
 *.key
 *.enc
+
+# local-only smoke / live test scripts
+/scripts/live/
