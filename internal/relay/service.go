@@ -39,11 +39,16 @@ type SignerPool interface {
 	Release(s *signer.Signer)
 }
 
+type WebhookEnqueuer interface {
+	Enqueue(ctx context.Context, requestID string) error
+}
+
 type Service struct {
-	pool   *pgxpool.Pool
-	chain  Chain
-	pools  SignerPool
-	signer types.Signer
+	pool     *pgxpool.Pool
+	chain    Chain
+	pools    SignerPool
+	signer   types.Signer
+	webhooks WebhookEnqueuer
 }
 
 func NewService(pool *pgxpool.Pool, ch Chain, pools SignerPool) *Service {
@@ -53,6 +58,12 @@ func NewService(pool *pgxpool.Pool, ch Chain, pools SignerPool) *Service {
 		pools:  pools,
 		signer: types.NewEIP155Signer(ch.ChainID()),
 	}
+}
+
+// SetWebhooks wires in the webhook enqueuer post-construction. Optional —
+// when nil, status changes won't fan out to webhooks.
+func (s *Service) SetWebhooks(w WebhookEnqueuer) {
+	s.webhooks = w
 }
 
 type SubmitInput struct {
@@ -144,6 +155,7 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (*SubmitResult, er
 	if err := s.markSubmitted(ctx, requestID, attemptID); err != nil {
 		return nil, fmt.Errorf("mark submitted: %w", err)
 	}
+	s.fireWebhook(ctx, requestID)
 
 	return &SubmitResult{
 		RequestID: requestID,
@@ -198,12 +210,26 @@ func (s *Service) insertAttempt(
 
 func (s *Service) markRequestStatus(ctx context.Context, requestID, status string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE relay_requests SET status = $1 WHERE id = $2::uuid`, status, requestID)
+	if err == nil && (status == "rejected" || status == "failed") {
+		s.fireWebhook(ctx, requestID)
+	}
 	return err
 }
 
 func (s *Service) markAttemptStatus(ctx context.Context, attemptID, status string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE tx_attempts SET status = $1 WHERE id = $2::uuid`, status, attemptID)
 	return err
+}
+
+func (s *Service) fireWebhook(ctx context.Context, requestID string) {
+	if s.webhooks == nil {
+		return
+	}
+	if err := s.webhooks.Enqueue(ctx, requestID); err != nil {
+		// Webhook enqueue failure shouldn't fail the relay path; log and move on.
+		// (Caller can still poll GET /v1/relay/:id.)
+		_ = err
+	}
 }
 
 func (s *Service) markSubmitted(ctx context.Context, requestID, attemptID string) error {

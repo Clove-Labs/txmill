@@ -41,10 +41,11 @@ type CreateInput struct {
 }
 
 type CreateResult struct {
-	AppID           string
-	BearerToken     string
-	TreasuryAddress common.Address
-	SignerAddresses []common.Address
+	AppID                 string
+	BearerToken           string
+	DefaultCallbackSecret string
+	TreasuryAddress       common.Address
+	SignerAddresses       []common.Address
 }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, error) {
@@ -74,16 +75,25 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, er
 		return nil, err
 	}
 
-	appID, err := s.insert(ctx, name, in.PoolSize, in.DefaultCallbackURL, treasury, signers, hash)
+	var callbackSecret string
+	if in.DefaultCallbackURL != "" {
+		callbackSecret, err = newCallbackSecret()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	appID, err := s.insert(ctx, name, in.PoolSize, in.DefaultCallbackURL, callbackSecret, treasury, signers, hash)
 	if err != nil {
 		return nil, fmt.Errorf("insert: %w", err)
 	}
 
 	return &CreateResult{
-		AppID:           appID,
-		BearerToken:     token,
-		TreasuryAddress: treasury,
-		SignerAddresses: signers,
+		AppID:                 appID,
+		BearerToken:           token,
+		DefaultCallbackSecret: callbackSecret,
+		TreasuryAddress:       treasury,
+		SignerAddresses:       signers,
 	}, nil
 }
 
@@ -92,6 +102,7 @@ func (s *Service) insert(
 	name string,
 	poolSize int,
 	callbackURL string,
+	callbackSecret string,
 	treasury common.Address,
 	signers []common.Address,
 	tokenHash []byte,
@@ -104,10 +115,11 @@ func (s *Service) insert(
 
 	var appID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO apps (name, treasury_address, bearer_token_hash, pool_size, default_callback_url)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''))
+		INSERT INTO apps (name, treasury_address, bearer_token_hash, pool_size,
+		                  default_callback_url, default_callback_secret)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''))
 		RETURNING id::text
-	`, name, lowerHex(treasury), tokenHash, poolSize, callbackURL).Scan(&appID)
+	`, name, lowerHex(treasury), tokenHash, poolSize, callbackURL, callbackSecret).Scan(&appID)
 	if err != nil {
 		return "", err
 	}
@@ -138,6 +150,14 @@ func newBearerToken() (token string, hash []byte, err error) {
 	token = bearerTokenTag + base64.RawURLEncoding.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(token))
 	return token, sum[:], nil
+}
+
+func newCallbackSecret() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("callback secret rand: %w", err)
+	}
+	return "whsec_" + base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 func lowerHex(a common.Address) string {

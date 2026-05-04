@@ -26,6 +26,7 @@ type Watcher struct {
 	interval  time.Duration
 	batchSize int
 	logger    *slog.Logger
+	webhooks  WebhookEnqueuer
 }
 
 func NewWatcher(pool *pgxpool.Pool, chain ReceiptChain, interval time.Duration, batchSize int, logger *slog.Logger) *Watcher {
@@ -36,6 +37,12 @@ func NewWatcher(pool *pgxpool.Pool, chain ReceiptChain, interval time.Duration, 
 		batchSize: batchSize,
 		logger:    logger,
 	}
+}
+
+// SetWebhooks wires in the webhook enqueuer post-construction. Optional —
+// when nil, status changes won't fan out to webhooks.
+func (w *Watcher) SetWebhooks(e WebhookEnqueuer) {
+	w.webhooks = e
 }
 
 func (w *Watcher) Run(ctx context.Context) {
@@ -168,7 +175,15 @@ func (w *Watcher) process(ctx context.Context, p pendingAttempt) error {
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if w.webhooks != nil {
+		if err := w.webhooks.Enqueue(ctx, p.requestID); err != nil {
+			w.logger.Warn("webhook enqueue", "request_id", p.requestID, "err", err)
+		}
+	}
+	return nil
 }
 
 func (w *Watcher) fetchRevertReason(ctx context.Context, p pendingAttempt, blockNumber *big.Int) string {
