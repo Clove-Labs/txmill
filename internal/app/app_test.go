@@ -82,6 +82,22 @@ func TestCreateApp_Validation(t *testing.T) {
 		{"empty name", app.CreateInput{Name: "  ", PoolSize: 1}},
 		{"zero pool", app.CreateInput{Name: "x", PoolSize: 0}},
 		{"too big pool", app.CreateInput{Name: "x", PoolSize: 10000}},
+		{"refill <= min", app.CreateInput{
+			Name: "x", PoolSize: 1,
+			SignerMinBalance: "100", SignerRefillAmount: "100",
+		}},
+		{"refill < min", app.CreateInput{
+			Name: "x", PoolSize: 1,
+			SignerMinBalance: "100", SignerRefillAmount: "50",
+		}},
+		{"min set, refill missing", app.CreateInput{
+			Name: "x", PoolSize: 1,
+			SignerMinBalance: "100",
+		}},
+		{"refill set, min missing", app.CreateInput{
+			Name: "x", PoolSize: 1,
+			SignerRefillAmount: "100",
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

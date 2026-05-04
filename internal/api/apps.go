@@ -13,6 +13,11 @@ type createAppRequest struct {
 	Name               string `json:"name"`
 	PoolSize           int    `json:"pool_size"`
 	DefaultCallbackURL string `json:"default_callback_url,omitempty"`
+	// Gas top-up policy (uint256 decimal strings). All three set together,
+	// or all zero/omitted to disable gas distribution for this app.
+	SignerMinBalance   string `json:"signer_min_balance,omitempty"`
+	SignerRefillAmount string `json:"signer_refill_amount,omitempty"`
+	TreasuryMinBalance string `json:"treasury_min_balance,omitempty"`
 }
 
 type createAppResponse struct {
@@ -32,6 +37,9 @@ func (h *Handlers) createApp(c echo.Context) error {
 		Name:               strings.TrimSpace(req.Name),
 		PoolSize:           req.PoolSize,
 		DefaultCallbackURL: strings.TrimSpace(req.DefaultCallbackURL),
+		SignerMinBalance:   strings.TrimSpace(req.SignerMinBalance),
+		SignerRefillAmount: strings.TrimSpace(req.SignerRefillAmount),
+		TreasuryMinBalance: strings.TrimSpace(req.TreasuryMinBalance),
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -38,6 +39,10 @@ type CreateInput struct {
 	Name               string
 	PoolSize           int
 	DefaultCallbackURL string
+	// Gas top-up policy. All three must be set together (or all zero = disabled).
+	SignerMinBalance   string // uint256 decimal
+	SignerRefillAmount string // uint256 decimal
+	TreasuryMinBalance string // uint256 decimal
 }
 
 type CreateResult struct {
@@ -55,6 +60,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, er
 	}
 	if in.PoolSize < minPoolSize || in.PoolSize > maxPoolSize {
 		return nil, fmt.Errorf("pool_size must be between %d and %d", minPoolSize, maxPoolSize)
+	}
+	if err := validateGasPolicy(in.SignerMinBalance, in.SignerRefillAmount); err != nil {
+		return nil, err
 	}
 
 	treasury, err := s.ks.Generate()
@@ -83,7 +91,12 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, er
 		}
 	}
 
-	appID, err := s.insert(ctx, name, in.PoolSize, in.DefaultCallbackURL, callbackSecret, treasury, signers, hash)
+	appID, err := s.insert(ctx, name, in.PoolSize, in.DefaultCallbackURL, callbackSecret,
+		treasury, signers, hash,
+		nonEmptyOrZero(in.SignerMinBalance),
+		nonEmptyOrZero(in.SignerRefillAmount),
+		nonEmptyOrZero(in.TreasuryMinBalance),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("insert: %w", err)
 	}
@@ -106,6 +119,7 @@ func (s *Service) insert(
 	treasury common.Address,
 	signers []common.Address,
 	tokenHash []byte,
+	signerMinBalance, signerRefillAmount, treasuryMinBalance string,
 ) (string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -116,10 +130,14 @@ func (s *Service) insert(
 	var appID string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO apps (name, treasury_address, bearer_token_hash, pool_size,
-		                  default_callback_url, default_callback_secret)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''))
+		                  default_callback_url, default_callback_secret,
+		                  signer_min_balance, signer_refill_amount, treasury_min_balance)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, $8, $9)
 		RETURNING id::text
-	`, name, lowerHex(treasury), tokenHash, poolSize, callbackURL, callbackSecret).Scan(&appID)
+	`, name, lowerHex(treasury), tokenHash, poolSize,
+		callbackURL, callbackSecret,
+		signerMinBalance, signerRefillAmount, treasuryMinBalance,
+	).Scan(&appID)
 	if err != nil {
 		return "", err
 	}
@@ -150,6 +168,46 @@ func newBearerToken() (token string, hash []byte, err error) {
 	token = bearerTokenTag + base64.RawURLEncoding.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(token))
 	return token, sum[:], nil
+}
+
+func nonEmptyOrZero(s string) string {
+	if s == "" {
+		return "0"
+	}
+	return s
+}
+
+// validateGasPolicy enforces:
+//   - both fields zero → gas worker skips this app (OK).
+//   - both fields non-zero → signer_refill_amount must exceed signer_min_balance,
+//     otherwise the worker would refill on every dedupe-window tick forever
+//     (refill leaves the signer still below threshold).
+//   - one field zero, other non-zero → invalid (forgot to set both).
+func validateGasPolicy(signerMin, signerRefill string) error {
+	min := parseUintOrZero(signerMin)
+	refill := parseUintOrZero(signerRefill)
+
+	if min.Sign() == 0 && refill.Sign() == 0 {
+		return nil
+	}
+	if min.Sign() == 0 || refill.Sign() == 0 {
+		return errors.New("signer_min_balance and signer_refill_amount must be set together (or both zero)")
+	}
+	if refill.Cmp(min) <= 0 {
+		return errors.New("signer_refill_amount must be greater than signer_min_balance")
+	}
+	return nil
+}
+
+func parseUintOrZero(s string) *big.Int {
+	if s == "" {
+		return new(big.Int)
+	}
+	v, ok := new(big.Int).SetString(s, 10)
+	if !ok || v.Sign() < 0 {
+		return new(big.Int)
+	}
+	return v
 }
 
 func newCallbackSecret() (string, error) {
