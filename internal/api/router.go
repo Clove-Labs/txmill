@@ -40,6 +40,7 @@ func NewRouter(logger *slog.Logger, h *Handlers) *echo.Echo {
 		protected.GET("/apps/:id/signers", h.listSigners)
 		if h.Relay != nil {
 			protected.POST("/relay", h.postRelay)
+			protected.GET("/relay/:request_id", h.getRelay)
 		}
 	}
 
