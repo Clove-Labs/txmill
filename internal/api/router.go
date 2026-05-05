@@ -39,6 +39,9 @@ func NewRouter(logger *slog.Logger, h *Handlers) *echo.Echo {
 		protected := v1.Group("", bearerAuth(h.Apps))
 		protected.GET("/apps/:id/signers", h.listSigners)
 		protected.GET("/apps/:id/balances", h.getBalances)
+		if h.Treasury != nil {
+			protected.POST("/apps/:id/treasury/sweep", h.sweepTreasury)
+		}
 		if h.Relay != nil {
 			protected.POST("/relay", h.postRelay)
 			protected.GET("/relay/:request_id", h.getRelay)
