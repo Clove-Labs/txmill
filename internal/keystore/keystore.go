@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,18 +84,7 @@ func (k *Keystore) Generate() (common.Address, error) {
 }
 
 func (k *Keystore) Load(addr common.Address) (*ecdsa.PrivateKey, error) {
-	path := k.path(addr)
-	data, err := os.ReadFile(path)
-	if err != nil && errors.Is(err, fs.ErrPermission) {
-		// Self-heal: previous container may have written this file under a
-		// different effective UID (volume mounts on user-namespace-remapped
-		// hosts can shift ownership between deploys). Try to take ownership
-		// and widen mode, then retry. Best effort — failures here surface as
-		// the original ReadFile error below.
-		_ = os.Chown(path, os.Getuid(), os.Getgid())
-		_ = os.Chmod(path, 0o600)
-		data, err = os.ReadFile(path)
-	}
+	data, err := os.ReadFile(k.path(addr))
 	if err != nil {
 		return nil, fmt.Errorf("keystore: read: %w", err)
 	}
