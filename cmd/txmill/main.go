@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -25,36 +23,6 @@ import (
 	"github.com/clove-labs/txmill/internal/treasury"
 	"github.com/clove-labs/txmill/internal/webhook"
 )
-
-func dumpKeystorePerms(dir string, logger *slog.Logger) {
-	logger.Info("keystore diag: effective ids", "uid", os.Getuid(), "gid", os.Getgid(), "dir", dir)
-	if info, err := os.Stat(dir); err != nil {
-		logger.Warn("keystore diag: stat dir", "err", err)
-	} else if sys, ok := info.Sys().(*syscall.Stat_t); ok {
-		logger.Info("keystore diag: dir", "uid", sys.Uid, "gid", sys.Gid, "mode", fmt.Sprintf("%o", info.Mode().Perm()))
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		logger.Warn("keystore diag: readdir", "err", err)
-		return
-	}
-	for _, e := range entries {
-		full := filepath.Join(dir, e.Name())
-		info, err := os.Lstat(full)
-		if err != nil {
-			logger.Warn("keystore diag: lstat", "name", e.Name(), "err", err)
-			continue
-		}
-		sys, _ := info.Sys().(*syscall.Stat_t)
-		logger.Info("keystore diag: file",
-			"name", e.Name(),
-			"uid", sys.Uid,
-			"gid", sys.Gid,
-			"mode", fmt.Sprintf("%o", info.Mode().Perm()),
-			"size", info.Size(),
-		)
-	}
-}
 
 func buildNotifier(cfg *config.Config, logger *slog.Logger) alert.Notifier {
 	transports := alert.Multi{}
@@ -106,10 +74,6 @@ func main() {
 		os.Exit(1)
 	}
 	defer chainClient.Close()
-
-	// One-shot keystore diagnostic: log effective uid/gid + each file's
-	// uid/gid/mode so we can debug volume permission issues on Railway.
-	dumpKeystorePerms(cfg.KeystoreDir, logger)
 
 	if report, err := relay.Recover(ctx, pool); err != nil {
 		logger.Error("startup recovery scan failed", "err", err)
