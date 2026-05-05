@@ -20,6 +20,7 @@ import (
 	"github.com/clove-labs/txmill/internal/relay"
 	"github.com/clove-labs/txmill/internal/signer"
 	"github.com/clove-labs/txmill/internal/store"
+	"github.com/clove-labs/txmill/internal/treasury"
 	"github.com/clove-labs/txmill/internal/webhook"
 )
 
@@ -127,10 +128,13 @@ func main() {
 	go webhookWorker.Run(bgCtx)
 	go gasWorker.Run(bgCtx)
 
+	treasurySvc := treasury.NewService(pool, chainClient, ks)
+
 	handlers := &api.Handlers{
-		Apps:  appSvc,
-		Relay: relaySvc,
-		Chain: chainClient,
+		Apps:     appSvc,
+		Relay:    relaySvc,
+		Chain:    chainClient,
+		Treasury: treasurySvc,
 	}
 	e := api.NewRouter(logger, handlers)
 
